@@ -86,6 +86,7 @@ jobs:
             else
               python3 ipatool-py/main.py --json lookup --get-verid -i ${{ github.event.inputs.appId }} -c ${{ github.event.inputs.appCountry }}
             fi
+            log_command "$cmd"
           elif [[ "$op" == historyver* ]]; then
             if [[ "$op" == "historyver" ]]; then
               python3 ipatool-py/main.py --json lookup -b ${{ github.event.inputs.appBundleId }} -c ${{ github.event.inputs.appCountry }} \
@@ -93,12 +94,14 @@ jobs:
             elif [[ "$op" == "historyver_id" ]]; then
               python3 ipatool-py/main.py --json historyver -s http://127.0.0.1:9000 --appId ${{ github.event.inputs.id }}
             fi
+            log_command "$cmd"
           elif [[ "$op" == download* ]]; then
             if [[ "${{ github.event.inputs.appVerId }}" == "" ]]; then
               appVerCmd=""
             else
               appVerCmd="--appVerId ${{ github.event.inputs.appVerId }}"
             fi
+            log_command "$cmd"
 
             if [[ "$op" == "download" ]]; then
               output=$(python3 ipatool-py/main.py --json lookup -b ${{ github.event.inputs.appBundleId }} -c ${{ github.event.inputs.appCountry }} \
@@ -106,6 +109,7 @@ jobs:
             elif [[ "$op" == "download_id" ]]; then
               output=$(python3 ipatool-py/main.py --json download -o ipaDown -s http://127.0.0.1:9000 --appId ${{ github.event.inputs.id }} $appVerCmd)
             fi
+            log_command "$cmd"
             echo "Got Downloading JSON result: $output"
             echo "::set-output name=needIPARelease::1"
             echo "::set-output name=appName::$(echo "$output" | jq -r '.appName')"
