@@ -18,7 +18,6 @@ on:
         required: true
       operation:
         description: 'Operation to do, choices: lookup, historyver, download, historyver_id, download_id'
-      
       appBundleId:
         description: 'AppStore Bundle-ID (needed when using non-*_id operations)'
         required: false
@@ -26,15 +25,12 @@ on:
         description: 'AppStore Country (needed when using non-*_id operations)'
         required: false
         default: 'JP'
-      
       appVerId:
         description: 'App Version Id Number (for downloading history versions)'
         required: false
-
       appId:
         description: 'App Id Number (needed when using *_id operations)'
         required: false
-      
       debug_enabled:
         description: 'Run the build with RDP debugging enabled'
         required: false
@@ -47,13 +43,13 @@ on:
 jobs:
   download_ipa:
     name: 'IPATool Operations'
-    runs-on: "windows-latest"
+    runs-on: windows-latest
     steps:
       - name: Masking inputs
         run: |
-          SECRET_VALUE=$(cat $GITHUB_EVENT_PATH | jq -r '.inputs.appleId' )
+          SECRET_VALUE=$(cat $GITHUB_EVENT_PATH | jq -r '.inputs.appleId')
           echo "::add-mask::$SECRET_VALUE"
-          SECRET_VALUE=$(cat $GITHUB_EVENT_PATH | jq -r '.inputs.appleIdPwd' )
+          SECRET_VALUE=$(cat $GITHUB_EVENT_PATH | jq -r '.inputs.appleIdPwd')
           echo "::add-mask::$SECRET_VALUE"
         shell: bash
 
@@ -74,43 +70,48 @@ jobs:
           apple_id: ${{ github.event.inputs.appleId }}
           apple_id_pwd: ${{ github.event.inputs.appleIdPwd }}
           ngrok_token: ${{ secrets.NGROK_AUTH_TOKEN }}
-        
+
       - name: Execute operation
         id: operation
         run: |
-          # available operations: lookup, historyver, download, historyver_id, download_id
+          log_command() {
+            echo "::group::Executing Python Command"
+            echo "$1"
+            echo "::endgroup::"
+            eval "$1"
+          }
+
           op=${{ github.event.inputs.operation }}
           if [[ "$op" == "lookup" ]]; then
             if [[ "${{ github.event.inputs.appBundleId }}" != "" ]]; then
-              python3 ipatool-py/main.py --json lookup --get-verid -b ${{ github.event.inputs.appBundleId }} -c ${{ github.event.inputs.appCountry }}
+              cmd="python3 ipatool-py/main.py --json lookup --get-verid -b ${{ github.event.inputs.appBundleId }} -c ${{ github.event.inputs.appCountry }}"
             else
-              python3 ipatool-py/main.py --json lookup --get-verid -i ${{ github.event.inputs.appId }} -c ${{ github.event.inputs.appCountry }}
-            fi
-            log_command "$cmd"
-          elif [[ "$op" == historyver* ]]; then
-            if [[ "$op" == "historyver" ]]; then
-              python3 ipatool-py/main.py --json lookup -b ${{ github.event.inputs.appBundleId }} -c ${{ github.event.inputs.appCountry }} \
-                                                historyver -s http://127.0.0.1:9000
-            elif [[ "$op" == "historyver_id" ]]; then
-              python3 ipatool-py/main.py --json historyver -s http://127.0.0.1:9000 --appId ${{ github.event.inputs.id }}
-            fi
-            log_command "$cmd"
-          elif [[ "$op" == download* ]]; then
-            if [[ "${{ github.event.inputs.appVerId }}" == "" ]]; then
-              appVerCmd=""
-            else
-              appVerCmd="--appVerId ${{ github.event.inputs.appVerId }}"
+              cmd="python3 ipatool-py/main.py --json lookup --get-verid -i ${{ github.event.inputs.appId }} -c ${{ github.event.inputs.appCountry }}"
             fi
             log_command "$cmd"
 
-            if [[ "$op" == "download" ]]; then
-              output=$(python3 ipatool-py/main.py --json lookup -b ${{ github.event.inputs.appBundleId }} -c ${{ github.event.inputs.appCountry }} \
-                                                download -o ipaDown -s http://127.0.0.1:9000 $appVerCmd)
-            elif [[ "$op" == "download_id" ]]; then
-              output=$(python3 ipatool-py/main.py --json download -o ipaDown -s http://127.0.0.1:9000 --appId ${{ github.event.inputs.id }} $appVerCmd)
+          elif [[ "$op" == historyver* ]]; then
+            if [[ "$op" == "historyver" ]]; then
+              cmd="python3 ipatool-py/main.py --json lookup -b ${{ github.event.inputs.appBundleId }} -c ${{ github.event.inputs.appCountry }} historyver -s http://127.0.0.1:9000"
+            elif [[ "$op" == "historyver_id" ]]; then
+              cmd="python3 ipatool-py/main.py --json historyver -s http://127.0.0.1:9000 --appId ${{ github.event.inputs.id }}"
             fi
             log_command "$cmd"
+
+          elif [[ "$op" == download* ]]; then
+            appVerCmd=""
+            if [[ "${{ github.event.inputs.appVerId }}" != "" ]]; then
+              appVerCmd="--appVerId ${{ github.event.inputs.appVerId }}"
+            fi
+
+            if [[ "$op" == "download" ]]; then
+              cmd="python3 ipatool-py/main.py --json lookup -b ${{ github.event.inputs.appBundleId }} -c ${{ github.event.inputs.appCountry }} download -o ipaDown -s http://127.0.0.1:9000 $appVerCmd"
+            elif [[ "$op" == "download_id" ]]; then
+              cmd="python3 ipatool-py/main.py --json download -o ipaDown -s http://127.0.0.1:9000 --appId ${{ github.event.inputs.id }} $appVerCmd"
+            fi
+            output=$(log_command "$cmd")
             echo "Got Downloading JSON result: $output"
+
             echo "::set-output name=needIPARelease::1"
             echo "::set-output name=appName::$(echo "$output" | jq -r '.appName')"
             echo "::set-output name=appBundleId::$(echo "$output" | jq -r '.appBundleId')"
@@ -121,7 +122,7 @@ jobs:
             echo "Unknown Operation: $op"
           fi
         shell: bash
-        
+
       - name: "Upload package"
         uses: NyaMisty/upload-artifact-as-is@master
         with:
@@ -134,24 +135,21 @@ jobs:
           (cd ipaDown; find . -name "*.ipa" -size +1879048192b -exec split --bytes=1879048192 --suffix-length=3 --numeric-suffix {} ../ipaDown_split/{}. \;)
           (cd ipaDown; find . -name "*.ipa" -not -size +1879048192b -exec cp -r {} ../ipaDown_split \;)
         shell: bash
-      
+
       - name: Pushing to release
-        if: ${{ steps.operation.outputs.needIPARelease == 1 }}
+        if: ${{ steps.operation.outputs.needIPARelease == '1' }}
         uses: ncipollo/release-action@v1
         with:
           name: "IPADown: ${{ steps.operation.outputs.appName }} - ${{ steps.operation.outputs.appVer }}"
-          body: >-
-            ${{ format(fromJSON('"appName: {0}\nappBundleId: {1}\nappVer: {2}\nappId: {3}\nappVerId: {4}\n"'), 
-                  steps.operation.outputs.appName, 
-                  steps.operation.outputs.appBundleId, 
-                  steps.operation.outputs.appVer, 
-                  steps.operation.outputs.appId, 
-                  steps.operation.outputs.appVerId
-                ) }}
+          body: |
+            App: ${{ steps.operation.outputs.appName }}
+            Bundle ID: ${{ steps.operation.outputs.appBundleId }}
+            Version: ${{ steps.operation.outputs.appVer }}
+            App ID: ${{ steps.operation.outputs.appId }}
+            Version ID: ${{ steps.operation.outputs.appVerId }}
           commit: ${{ github.sha }}
           tag: "${{ steps.operation.outputs.appBundleId }}-${{ steps.operation.outputs.appId }}-${{ steps.operation.outputs.appVerId }}"
           artifacts: ipaDown_split\*
-
           allowUpdates: true
           removeArtifacts: true
           replacesArtifacts: true
