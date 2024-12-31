@@ -89,9 +89,9 @@ jobs:
           elif [[ "$op" == historyver* ]]; then
             if [[ "$op" == "historyver" ]]; then
               python3 ipatool-py/main.py --json lookup -b ${{ github.event.inputs.appBundleId }} -c ${{ github.event.inputs.appCountry }} \
-                                                historyver --purchase -s http://127.0.0.1:9000
+                                                historyver -s http://127.0.0.1:9000
             elif [[ "$op" == "historyver_id" ]]; then
-              python3 ipatool-py/main.py --json historyver --purchase -s http://127.0.0.1:9000 --appId ${{ github.event.inputs.id }}
+              python3 ipatool-py/main.py --json historyver -s http://127.0.0.1:9000 --appId ${{ github.event.inputs.id }}
             fi
           elif [[ "$op" == download* ]]; then
             if [[ "${{ github.event.inputs.appVerId }}" == "" ]]; then
@@ -102,7 +102,7 @@ jobs:
 
             if [[ "$op" == "download" ]]; then
               output=$(python3 ipatool-py/main.py --json lookup -b ${{ github.event.inputs.appBundleId }} -c ${{ github.event.inputs.appCountry }} \
-                                                download --purchase -o ipaDown -s http://127.0.0.1:9000 $appVerCmd)
+                                                download -o ipaDown -s http://127.0.0.1:9000 $appVerCmd)
             elif [[ "$op" == "download_id" ]]; then
               output=$(python3 ipatool-py/main.py --json download -o ipaDown -s http://127.0.0.1:9000 --appId ${{ github.event.inputs.id }} $appVerCmd)
             fi
